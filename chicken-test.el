@@ -3,29 +3,12 @@
 ;; A major mode for CHICKEN tests that use the test-egg.
 ;; It allows you to run your tests from within emacs and allows you to quickly and conveniently navigate the test output
 ;;
-;; Requirements
-;; ============
-;; This mode currently requires eproject to function properly. See https://github.com/jrockway/eproject
-;;
-;; You likely want to recognize CHICKEN projects like so:
-;;
-;; (define-project-type scheme (generic)
-;;   (look-for "*.scm" :glob))
-;;
-;; (define-project-type chicken-egg (scheme)
-;;   (and (look-for "*.setup" :glob)
-;;        (look-for "*.meta" :glob)
-;;        (look-for "*.release-info" :glob))
-;;   :irrelevant-files ("*.import.*" "*.so" "*.o")
-;;   :tasks (("build" :shell "chicken-install")))
-;;
-;; Anything that recognizes your project as a CHICKEN project and sets eproject-root appropriatly will do though.
-;;
-;;
+
 ;; Configuration
 ;; =============
 ;; Bind the function chicken-test-run-file to a key of your choice. For example:
 ;; (global-set-key (kbd "C-c c t") 'chicken-test-run-file)
+;; (global-set-key (kbd "C-c c T") 'chicken-test-run-file-with-filter)
 ;; (global-set-key (kbd "C-c c z") 'chicken-test-switch-to-test-buffer)
 ;;
 ;; In the test buffer the following keys are bound:
@@ -40,11 +23,10 @@
 ;;
 ;; Status
 ;; ======
-;; unstable (currently work in progress)
+;; possibly unstable (currently work in progress)
 ;;
 ;; Limitations
 ;; ============
-;; * it requires eproject
 ;; * it currently only works with the test egg
 ;; * it has no proper font-locking of the test buffer (in progress)
 
@@ -73,9 +55,15 @@
 
 (defvar chicken-test-not-found-message "No test file found in current project.")
 
+(defun* chicken-test-project-root (&optional (buffer (current-buffer)))
+  "Determine the root of the current chicken project"
+  (interactive)
+  (let ((file (buffer-file-name buffer)))
+    (file-name-directory file)))
+
 (defun chicken-test-run-test (command options file buffer)
   (message "Running tests ( %s ) " file)
-  (let ((root (eproject-root)))
+  (let ((root (chicken-test-project-root)))
     (display-buffer buffer)
     (setq chicken-test-last-run file)
     (save-excursion
@@ -88,7 +76,7 @@
 	  (let ((directory root)
 		(previous-directory default-directory))
 	    (and directory (cd directory))
-	    (let ((proc (apply 'start-process "chicken-test" buffer args)))
+	    (let ((proc (apply 'start-process-shell-command "chicken-test" buffer args)))
 	      (set-process-sentinel proc 'chicken-test-runner-sentinel))
 	    (and directory (cd previous-directory))))))))
 
@@ -104,11 +92,11 @@
       (string-match "\\(.*\\)[^\n]" event)
       (message chicken-test-fail-message-with-reason (match-string 1 event))))))
 
-(defun chicken-test-run-test-file (file output-buffer)
-  (chicken-test-run-test "csi" (list "-s" file) file output-buffer))
+(defun chicken-test-run-test-file (command file output-buffer)
+  (chicken-test-run-test command (list "-s" file) file output-buffer))
 
 (defun chicken-test-full-path (filename)
-  (concat (eproject-root) filename))
+  (concat (chicken-test-project-root) filename))
 
 (defun chicken-test-ask-for-file ()
   (read-file-name "Path to test-file:"))
@@ -121,12 +109,28 @@
       (setq chicken-test-last-run (chicken-test-ask-for-file)))
     chicken-test-last-run))
 
+(defun ask-user (prompt)
+  (interactive)
+  (read-string prompt))
+
 (defun chicken-test-run-file ()
+  "Runs the test file"
   (interactive)
   (setq chicken-test-buffer (get-buffer-create chicken-test-buffer-name))
   (let ((test-file (chicken-test-find-test-file)))
     (if test-file
-	(chicken-test-run-test-file test-file chicken-test-buffer)
+	(chicken-test-run-test-file "csi" test-file chicken-test-buffer)
+      (message chicken-test-not-found-message))))
+
+;; TODO: remember last filter
+(defun chicken-test-run-file-with-filter ()
+  "Runs the test file with the filter that is retrieved from the user"
+  (interactive)
+  (setq chicken-test-buffer (get-buffer-create chicken-test-buffer-name))
+  (let ((test-file (chicken-test-find-test-file))
+	(filter    (ask-user "Filter: ")))
+    (if test-file
+	(chicken-test-run-test-file (concat (concat "TEST_FILTER=" filter) " csi") test-file chicken-test-buffer)
       (message chicken-test-not-found-message))))
 
 (defun chicken-test-switch-to-test-buffer ()
