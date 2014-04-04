@@ -7,9 +7,12 @@
 ;; Configuration
 ;; =============
 ;; Bind the function chicken-test-run-file to a key of your choice. For example:
-;; (global-set-key (kbd "C-c c t") 'chicken-test-run-file)
-;; (global-set-key (kbd "C-c c T") 'chicken-test-run-file-with-filter)
-;; (global-set-key (kbd "C-c c z") 'chicken-test-switch-to-test-buffer)
+;; (global-set-key (kbd "C-c t t") 'chicken-test-run-file)
+;; (global-set-key (kbd "C-c t f") 'chicken-test-run-file-with-filter)
+;; (global-set-key (kbd "C-c t F") 'chicken-test-run-file-with-group-filter)
+;; (global-set-key (kbd "C-c t r") 'chicken-test-run-file-with-remover)
+;; (global-set-key (kbd "C-c t R") 'chicken-test-run-file-with-group-remover)
+;; (global-set-key (kbd "C-c t z") 'chicken-test-switch-to-test-buffer)
 ;;
 ;; In the test buffer the following keys are bound:
 ;;
@@ -113,25 +116,42 @@
   (interactive)
   (read-string prompt))
 
-(defun chicken-test-run-file ()
-  "Runs the test file"
+(defun chicken-test-run-file/environment (env)
+  "Runs the test file with the command given. The command may actually be annotated with environment variables"
   (interactive)
   (setq chicken-test-buffer (get-buffer-create chicken-test-buffer-name))
   (let ((test-file (chicken-test-find-test-file)))
     (if test-file
-	(chicken-test-run-test-file "csi" test-file chicken-test-buffer)
+	(chicken-test-run-test-file (concat env " csi") test-file chicken-test-buffer)
       (message chicken-test-not-found-message))))
 
-;; TODO: remember last filter
+(defun chicken-test-run-file ()
+  "Runs the test file"
+  (interactive)
+  (chicken-test-run-file/environment ""))
+
 (defun chicken-test-run-file-with-filter ()
   "Runs the test file with the filter that is retrieved from the user"
   (interactive)
-  (setq chicken-test-buffer (get-buffer-create chicken-test-buffer-name))
-  (let ((test-file (chicken-test-find-test-file))
-	(filter    (ask-user "Filter: ")))
-    (if test-file
-	(chicken-test-run-test-file (concat (concat "TEST_FILTER=" filter) " csi") test-file chicken-test-buffer)
-      (message chicken-test-not-found-message))))
+  (let ((filter (ask-user "Filter: ")))
+    (chicken-test-run-file/environment (concat "TEST_FILTER=" filter))))
+
+(defun chicken-test-run-file-with-group-filter ()
+  (interactive)
+  (let ((filter (ask-user "Group Filter: ")))
+    (chicken-test-run-file/environment (concat "TEST_GROUP_FILTER=" filter))))
+
+(defun chicken-test-run-file-with-remover ()
+  "Runs the test file with the remover that is retrieved from the user"
+  (interactive)
+  (let ((remover (ask-user "Remove: ")))
+    (chicken-test-run-file/environment (concat "TEST_REMOVE=" remover))))
+
+(defun chicken-test-run-file-with-group-remover ()
+  "Runs the test file with the remover that is retrieved from the user"
+  (interactive)
+  (let ((remover (ask-user "Group Remove: ")))
+    (chicken-test-run-file/environment (concat "TEST_GROUP_REMOVE=" remover))))
 
 (defun chicken-test-switch-to-test-buffer ()
   (interactive)
